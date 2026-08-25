@@ -1,24 +1,93 @@
 Alarm App Design Doc
 
-allows the user (no login needed for this) to manage an alarm account
+A single page app for managing an alarm account. No login - anyone with the app
+has full access to the codes and the contacts.
+
 
 UI:
-First tab is a list of alarm codes, and who they are assigned to, and a contact info section for when an alarm is tripped.
-There is a section to add a new code, and another section to add another contact.
 
-Second tab is called test and holds the test alarm. There is a status and a keypad. There is a button to trip the alarm and reset the alarm.
-When the alarm is tripped and no code, or an incorrect code is entered a pop up will appear saying that the "contact info for alarm trip" is being contacted.
+The first tab lists the alarm codes and who they are assigned to, and holds the
+contact info to use when an alarm is tripped. Each list has a section below it
+for adding a new entry.
+
+The code list shows four columns:
+
+    Assignee | Code ("****") | Date added | [Delete]
+
+The mask is fixed. Codes are salted-hashed, so the plaintext is gone by design
+and cannot be rendered, and a constant-width mask does not give away the length
+either. There is no "view code" action - a code can only be deleted and
+replaced, never revealed. This is why the alarm code class needs a date added
+field: with the code itself unreadable, the assignee and the date are the only
+things left to recognise a row by.
+
+The second tab is called test and holds the test alarm. It has a status
+display, a keypad, a button to trip the alarm, and a button to reset it.
+
+Tripping the alarm starts a countdown, 30 seconds by default, shown in the
+status area:
+
+    TRIPPED - 12s remaining
+
+If no valid code is entered before the countdown expires, the contacts are
+called and a pop up appears saying that the "contact info for alarm trip" is
+being contacted. "No code entered" therefore means running out of time, not
+pressing enter on an empty keypad. An incorrect code entered during the
+countdown shows that pop up immediately, without waiting for the countdown to
+expire.
+
+Calling the contacts ends the trip. However it happened - time ran out, or a
+wrong code was entered - the contacts are called, the countdown is cancelled,
+and the alarm returns to ready for another test. A correct code clears the
+alarm without calling anybody.
+
+The countdown has a consequence for the backend: the controller owns a timer,
+not just keypad events. The alarm can reach the point of calling contacts with
+no user input at all.
+
+Reset is a plain button. Anyone can press it to silence a tripped alarm and
+cancel the countdown without entering a valid code. This is deliberate for a
+test harness - an always-available escape hatch is useful when demoing - and is
+a known non-security rather than an oversight. If this ever becomes more than a
+test harness, reset must require a valid code; otherwise the codes are not
+load-bearing on the disarm path at all.
+
 
 Backend:
-Use model-view-controller paradigm to store data and display codes and alarm.
-Alarm codes is a class with a code value field, and an assignee field.
-Alarm codes are verified with a salted cryptographic hashing.
-Contact info is a class with a name field, phone number field, email address field.
-Contact info is stored in a list.
 
-When an alarm is tripped, every contact in the list is called.
--Called is defined as creating a pop up saying "[name field] has been contacted"
+Model-view-controller, with the model holding the data and the views rendering
+the codes and the alarm.
+
+An alarm code is a class holding an assignee field, a date added field, and a
+per-code random salt with the hash derived from it. There is no code value
+field - the plaintext is used once to derive the hash and is never persisted,
+which is what forces the masked list described above. Verifying an entered code
+means hashing it against each stored salt in turn and comparing.
+
+The hashing is a per-code random salt plus SHA-256. This is illustrative, not
+defensible. For short numeric codes the keyspace is tiny - 10,000 values for
+four digits - so anyone holding the hash file can recover every code
+essentially instantly. The honest benefit is "no plaintext at rest"; it is not
+resistance to a determined attacker. For a real deployment, swap SHA-256 for a
+real KDF - PBKDF2, bcrypt, or Argon2 - with a high iteration count, and raise
+the minimum code length so that the keyspace is worth protecting.
+
+Contact info is a class with a name field, a phone number field, and an email
+address field. Contacts are stored in a list.
+
+When an alarm is tripped, every contact in the list is called, in list order.
+Called is defined as creating a pop up saying "[name field] has been
+contacted".
 
 
 Improvements:
-Contact info could have a time field that determines  which contact to call based on when the alarm is tripped
+
+Contact info could have a time field that determines which contact to call
+based on when the alarm is tripped, instead of calling everybody.
+
+Reset could require a valid code, as noted above.
+
+Hashing could move to a real KDF, with a longer minimum code length, as noted
+above.
+
+Create a way to store codes and contact info out of memory
