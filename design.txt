@@ -1,0 +1,24 @@
+Alarm App Design Doc
+
+allows the user (no login needed for this) to manage an alarm account
+
+UI:
+First tab is a list of alarm codes, and who they are assigned to, and a contact info section for when an alarm is tripped.
+There is a section to add a new code, and another section to add another contact.
+
+Second tab is called test and holds the test alarm. There is a status and a keypad. There is a button to trip the alarm and reset the alarm.
+When the alarm is tripped and no code, or an incorrect code is entered a pop up will appear saying that the "contact info for alarm trip" is being contacted.
+
+Backend:
+Use model-view-controller paradigm to store data and display codes and alarm.
+Alarm codes is a class with a code value field, and an assignee field.
+Alarm codes are verified with a salted cryptographic hashing.
+Contact info is a class with a name field, phone number field, email address field.
+Contact info is stored in a list.
+
+When an alarm is tripped, every contact in the list is called.
+-Called is defined as creating a pop up saying "[name field] has been contacted"
+
+
+Improvements:
+Contact info could have a time field that determines  which contact to call based on when the alarm is tripped
